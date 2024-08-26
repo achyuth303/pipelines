@@ -1,0 +1,201 @@
+1. git init
+Purpose: Initializes a new Git repository in the current directory.
+Example:
+bash
+Copy code
+git init
+Use: When you start a new project and want to track it with Git.
+
+2. git clone
+Purpose: Creates a copy of an existing Git repository.
+Example:
+bash
+Copy code
+git clone https://github.com/username/repo.git
+Use: When you want to copy a remote repository to your local machine.
+
+3. git add
+Purpose: Adds changes in the working directory to the staging area (prepares them to be committed).
+Example:
+bash
+Copy code
+git add file1.txt file2.txt
+Use: When you want to include specific changes in the next commit.
+
+4. git commit
+Purpose: Records changes from the staging area in the repository with a message.
+Example:
+bash
+Copy code
+git commit -m "Added new feature"
+Use: After adding changes to the staging area, you commit them with a message describing the change.
+
+5. git status
+Purpose: Displays the state of the working directory and the staging area.
+Example:
+bash
+Copy code
+git status
+Use: To check which changes have been staged, which haven’t, and which files aren’t being tracked by Git.
+
+6. git log
+Purpose: Shows the commit history of the current branch.
+Example:
+bash
+Copy code
+git log
+Use: To view the list of commits along with their messages, authors, and dates.
+
+7. git branch
+Purpose: Lists, creates, or deletes branches.
+Examples:
+List all branches:
+bash
+Copy code
+git branch
+Create a new branch:
+bash
+Copy code
+git branch feature-branch
+Delete a branch:
+bash
+Copy code
+git branch -d feature-branch
+Use: To manage branches in your repository.
+
+8. git checkout
+Purpose: Switches branches or restores files in the working directory.
+Examples:
+Switch to a different branch:
+bash
+Copy code
+git checkout feature-branch
+Create and switch to a new branch:
+bash
+Copy code
+git checkout -b new-branch
+Use: To move between different branches or revert files to a previous state.
+
+9. git merge
+Purpose: Merges changes from one branch into another.
+Example:
+bash
+Copy code
+git checkout main
+git merge feature-branch
+Use: To integrate changes from a feature branch into the main branch.
+
+10. git pull
+markdown
+Copy code
+- **Purpose**: Fetches changes from a remote repository and merges them into the current branch.
+- **Example**:
+  ```bash
+  git pull origin main
+  ```
+- **Use**: To update your local branch with changes from the remote repository.
+
+11. git push
+markdown
+Copy code
+- **Purpose**: Uploads local repository changes to a remote repository.
+- **Example**:
+  ```bash
+  git push origin main
+  ```
+- **Use**: To share your changes with others by pushing them to a remote repository.
+
+12. git fetch
+markdown
+Copy code
+- **Purpose**: Downloads changes from a remote repository but does not merge them.
+- **Example**:
+  ```bash
+  git fetch origin
+  ```
+- **Use**: To see changes in the remote repository without affecting your local work.
+
+13. git remote
+perl
+Copy code
+- **Purpose**: Manages the set of remote repositories.
+- **Examples**:
+  - List remote repositories:
+    ```bash
+    git remote -v
+    ```
+  - Add a remote repository:
+    ```bash
+    git remote add origin https://github.com/username/repo.git
+    ```
+- **Use**: To add, remove, or list the remote repositories your local repository is connected to.
+
+14. git rebase
+markdown
+Copy code
+- **Purpose**: Reapplies commits on top of another base tip.
+- **Example**:
+  ```bash
+  git checkout feature-branch
+  git rebase main
+  ```
+- **Use**: To keep your feature branch up to date with the latest changes in the main branch.
+
+15. git reset
+go
+Copy code
+- **Purpose**: Resets the current branch to a specific state.
+- **Examples**:
+  - Reset the staging area but keep working directory changes:
+    ```bash
+    git reset HEAD file.txt
+    ```
+  - Reset to a specific commit:
+    ```bash
+    git reset --hard <commit-hash>
+    ```
+- **Use**: To undo changes or move back to a previous commit.
+
+16. git stash
+markdown
+Copy code
+- **Purpose**: Temporarily saves changes in a dirty working directory.
+- **Example**:
+  ```bash
+  git stash
+  ```
+- **Use**: When you want to switch branches but save your current work for later.
+
+17. git tag
+go
+Copy code
+- **Purpose**: Creates tags, which are pointers to specific points in Git history.
+- **Examples**:
+  - Create a tag:
+    ```bash
+    git tag v1.0
+    ```
+  - List tags:
+    ```bash
+    git tag
+    ```
+  - Push tags to remote:
+    ```bash
+    git push origin v1.0
+    ```
+- **Use**: To mark releases or important points in the repository history.
+
+18. git diff
+javascript
+Copy code
+- **Purpose**: Shows the differences between commits, branches, files, etc.
+- **Examples**:
+  - Compare working directory changes with the last commit:
+    ```bash
+    git diff
+    ```
+  - Compare two branches:
+    ```bash
+    git diff branch1..branch2
+    ```
+- **Use**: To see what changes have been made between two points in history.
