@@ -1,0 +1,38 @@
+$param= '{
+    "EnvironmentVariables": [
+      {
+        "SchemaName": "ema_ProductCopyURL",
+        "Value": ""
+      },
+      {
+        "SchemaName": "ema_productui_copyproduct_clientid",
+        "Value": ""
+      },
+      {
+        "SchemaName": "ema_productui_copyproduct_clientsecret",
+        "Value": ""
+      },
+      {
+        "SchemaName": "ema_productui_copyproduct_tenantid",
+        "Value": ""
+      },
+      
+     {
+      "SchemaName": "ema_SharePoint_URL",
+      "Value": ""
+     }
+    
+      
+      ],
+    "ConnectionReferences": [ ]
+  }'|ConvertFrom-Json
+
+  $param.EnvironmentVariables.GetValue(0).value='$(AZURE_INITIATECOPYURL)'
+  $param.EnvironmentVariables.GetValue(1).value='$(AZURE_CLIENT_ID)'
+  $param.EnvironmentVariables.GetValue(2).value='$(AZURE_CLIENT_SECRET)'
+  $param.EnvironmentVariables.GetValue(3).value='$(AZURE_TENANT_ID)'
+  $param.EnvironmentVariables.GetValue(4).value='$(SharePointURL)'
+
+  $paramjson= ConvertTo-Json $param |  Out-File $(System.DefaultWorkingDirectory)/deploymentsettings.json
+
+  Get-Content $(System.DefaultWorkingDirectory)/deploymentsettings.json
