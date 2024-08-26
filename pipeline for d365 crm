@@ -1,0 +1,247 @@
+name: $(Date:yyyy.MM.dd).$(Rev:r)
+ 
+trigger:
+- none
+ 
+parameters:
+  - name: 'branches'
+    type: object
+    default: 
+     - CG_Test01
+     - develop
+  - name: 'SolutionsName'
+    displayName: Which Solution to deploy?
+    type: object
+    default:
+    - EMA_Customization
+    - EMA_Automation
+    - EMA_PowerAutomate
+    - EMA_Reports
+    - EMA_Security
+    - EMA_Templates
+stages:
+  - stage: 'CESolutions'
+    jobs:
+    - deployment : SolutionDeployment
+      displayName: SolutionDeployment
+      pool:
+        vmImage: 'windows-latest'
+      environment:
+        name: 'CESolutions'
+      strategy:
+        runOnce:
+          deploy:
+            steps:
+            - checkout: none
+            - ${{ each branch in parameters.branches }}:
+              - task: Bash@3
+                inputs:
+                  targetType: 'inline'
+                  script: |
+                    rm -fr .git      
+                    rm -rf EMA.Customizations   
+                    git clone -c core.longpaths=true  -c   http.extraheader="AUTHORIZATION: bearer $(System.AccessToken)" --branch ${{ branch }} --depth 1 https://euemadev@dev.azure.com/euemadev/DADI%20IRIS%20IMPLEMENTATION/_git/EMA.Customizations
+                displayName: Code Checkout From ${{ branch }}
+              - task: PowerPlatformToolInstaller@2
+                inputs:
+                  DefaultVersion: true
+ 
+              - ${{ each SoluName in parameters.SolutionsName }}:
+                    - task: PowerPlatformPackSolution@2
+                      inputs:
+                        SolutionSourceFolder: '$(Build.SourcesDirectory)\EMA.Customizations\Solutions\Customization\${{ SoluName }}'
+                        SolutionOutputFile: '$(Build.ArtifactStagingDirectory)/${{ SoluName }}'
+                      condition: succeededOrFailed()
+                      displayName: ${{ SoluName }}
+ 
+              - task: PublishBuildArtifacts@1
+                inputs:
+                  PathtoPublish: '$(Build.ArtifactStagingDirectory)'
+                  ArtifactName: '${{ branch }}.PackedUnmanaged'
+                  publishLocation: 'Container'
+  - stage: 'PortalEnv'
+    jobs:
+      - deployment : PortalDeployment
+        displayName: PortalDeployment
+        pool:
+          vmImage: 'windows-latest'
+        environment:
+          name: 'PortalEnv'
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+              - checkout: none
+              - ${{ each branch in parameters.branches }}:
+                - task: Bash@3
+                  inputs:
+                    targetType: 'inline'
+                    script: |
+                      rm -fr .git      
+                      rm -rf EMA.Customizations   
+                      git clone -c core.longpaths=true  -c   http.extraheader="AUTHORIZATION: bearer $(System.AccessToken)" --branch ${{ branch }} --depth 1 https://euemadev@dev.azure.com/euemadev/DADI%20IRIS%20IMPLEMENTATION/_git/EMA.Customizations
+                  displayName: Code Checkout From ${{ branch }}
+                - task: PublishBuildArtifacts@1
+                  displayName: 'Publish Artifact: PLM Portal'
+                  inputs:
+                    PathtoPublish: '$(Build.SourcesDirectory)\EMA.Customizations\Solutions\PortalCLI\PLM\paportal\plm'
+                    ArtifactName: '${{ branch }}.PLM Portal'
+                    publishLocation: 'Container'
+ 
+  
+        
+      
+ 
+ 
+ 
+ 
+ 
+name: $(Date:yyyyMMdd).$(Rev:r)
+ 
+trigger:
+- develop
+ 
+pool:
+  vmImage: windows-latest
+ 
+  
+variables:
+   - group: 'D365 CE - DEV - Environment URL'
+   - group: 'D365 CE - DEV - Connection Base'
+   - group: 'D365 CE - DEV - Solution names' 
+   - group: 'D365 CE - DEV - Azure AD Connection Info'  
+   - group: 'D365 CE - DEV - Azure Key Vault'     
+stages:
+- stage:
+  jobs:
+    - job: Build
+      displayName: 'Non-Prod Export Manged solution from Master dev'
+      steps:
+        - task: PowerPlatformToolInstaller@2
+          inputs:
+            DefaultVersion: true
+        - task: PowerPlatformWhoAmi@2
+          inputs:
+            authenticationType: 'PowerPlatformSPN'
+            PowerPlatformSPN: 'Dev-ServiceConnection'
+            Environment: '$(ce.dev)'
+        - task: PowerPlatformSetSolutionVersion@2
+          inputs:
+            authenticationType: 'PowerPlatformSPN'
+            PowerPlatformSPN: 'Dev-ServiceConnection'
+            SolutionName: '$(crmEMA_Automation)'
+            SolutionVersionNumber: '$(Build.BuildNumber)'
+        - task: PowerPlatformSetSolutionVersion@2
+          inputs:
+            authenticationType: 'PowerPlatformSPN'
+            PowerPlatformSPN: 'Dev-ServiceConnection'
+            SolutionName: '$(crmEMA_Customization)'
+            SolutionVersionNumber: '$(Build.BuildNumber)'
+        - task: PowerPlatformSetSolutionVersion@2
+          inputs:
+            authenticationType: 'PowerPlatformSPN'
+            PowerPlatformSPN: 'Dev-ServiceConnection'
+            SolutionName: '$(crmEMA_PowerAutomate)'
+            SolutionVersionNumber: '$(Build.BuildNumber)'
+        - task: PowerPlatformSetSolutionVersion@2
+          inputs:
+            authenticationType: 'PowerPlatformSPN'
+            PowerPlatformSPN: 'Dev-ServiceConnection'
+            SolutionName: '$(crmEMA_Reports)'
+            SolutionVersionNumber: '$(Build.BuildNumber)'
+        - task: PowerPlatformSetSolutionVersion@2
+          inputs:
+            authenticationType: 'PowerPlatformSPN'
+            PowerPlatformSPN: 'Dev-ServiceConnection'
+            SolutionName: '$(crmEMA_Security)'
+            SolutionVersionNumber: '$(Build.BuildNumber)'
+        - task: PowerPlatformSetSolutionVersion@2
+          inputs:
+            authenticationType: 'PowerPlatformSPN'
+            PowerPlatformSPN: 'Dev-ServiceConnection'
+            SolutionName: '$(crmEMA_Templates)'
+            SolutionVersionNumber: '$(Build.BuildNumber)'
+        - task: PowerPlatformExportSolution@2
+          inputs:
+            authenticationType: 'PowerPlatformSPN'
+            PowerPlatformSPN: 'Dev-ServiceConnection'
+            Environment: '$(ce.dev)'
+            SolutionName: '$(crmEMA_Customization)'
+            SolutionOutputFile: '$(Build.ArtifactStagingDirectory)'
+            Managed: true
+            AsyncOperation: true
+            MaxAsyncWaitTime: '1800'
+        - task: PowerPlatformExportSolution@2
+          inputs:
+            authenticationType: 'PowerPlatformSPN'
+            PowerPlatformSPN: 'Dev-ServiceConnection'
+            Environment: '$(ce.dev)'
+            SolutionName: '$(crmEMA_Automation)'
+            SolutionOutputFile: '$(Build.ArtifactStagingDirectory)'
+            Managed: true
+            AsyncOperation: true
+            MaxAsyncWaitTime: '1800'
+        - task: PowerPlatformExportSolution@2
+          inputs:
+            authenticationType: 'PowerPlatformSPN'
+            PowerPlatformSPN: 'Dev-ServiceConnection'
+            Environment: '$(ce.dev)'
+            SolutionName: '$(crmEMA_PowerAutomate)'
+            SolutionOutputFile: '$(Build.ArtifactStagingDirectory)'
+            Managed: true
+            AsyncOperation: true
+            MaxAsyncWaitTime: '1800'
+        - task: PowerPlatformExportSolution@2
+          inputs:
+            authenticationType: 'PowerPlatformSPN'
+            PowerPlatformSPN: 'Dev-ServiceConnection'
+            Environment: '$(ce.dev)'
+            SolutionName: '$(crmEMA_Reports)'
+            SolutionOutputFile: '$(Build.ArtifactStagingDirectory)'
+            Managed: true
+            AsyncOperation: true
+            MaxAsyncWaitTime: '1800'
+        - task: PowerPlatformExportSolution@2
+          inputs:
+            authenticationType: 'PowerPlatformSPN'
+            PowerPlatformSPN: 'Dev-ServiceConnection'
+            Environment: '$(ce.dev)'
+            SolutionName: '$(crmEMA_Security)'
+            SolutionOutputFile: '$(Build.ArtifactStagingDirectory)'
+            Managed: true
+            AsyncOperation: true
+            MaxAsyncWaitTime: '1800'
+        - task: PowerPlatformExportSolution@2
+          inputs:
+            authenticationType: 'PowerPlatformSPN'
+            PowerPlatformSPN: 'Dev-ServiceConnection'
+            Environment: '$(ce.dev)'
+            SolutionName: '$(crmEMA_Templates)'
+            SolutionOutputFile: '$(Build.ArtifactStagingDirectory)'
+            Managed: true
+            AsyncOperation: true
+            MaxAsyncWaitTime: '1800'
+        - task: CopyFiles@2
+          displayName: 'Copy deployment settings Files to: $(Build.ArtifactStagingDirectory)'
+          inputs:
+            Contents: 'deployment settings/*'
+            TargetFolder: '$(Build.ArtifactStagingDirectory)'
+        - task: PublishBuildArtifacts@1
+          inputs:
+            PathtoPublish: '$(Build.ArtifactStagingDirectory)'
+            ArtifactName: 'Devs Solutions'
+            publishLocation: 'Container'
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+    
+    
+ 
+ 
