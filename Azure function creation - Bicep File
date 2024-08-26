@@ -1,0 +1,144 @@
+
+param resourceLocation string = resourceGroup().location
+
+
+//any identifier that need to be appended
+@description('Resource name Prefix')
+param resourceNamePrefix string
+var envResourceNamePrefix = resourceNamePrefix
+
+@description('environment name')
+param envName string
+var envNamePrefix = envName
+param envResourceNameId string
+var strenvResourceNameId = envResourceNameId
+
+
+resource azStorageAccount 'Microsoft.Storage/storageAccounts@2022-09-01'={
+
+    name : '${strenvResourceNameId}storage'
+    location:resourceLocation
+    kind: 'StorageV2'
+    sku:{
+        name: 'Standard_LRS'
+    }
+    properties:{
+    accessTier:'Hot'
+    allowBlobPublicAccess:false 
+    allowCrossTenantReplication:false
+    allowSharedKeyAccess:true
+    }
+
+}
+
+// Create Application Insights
+
+resource azAppInsights 'Microsoft.Insights/components@2020-02-02' = {
+    name : 'appInsight${envResourceNamePrefix}BulkUpload-${envNamePrefix}'
+    location:resourceLocation
+    kind : 'web'
+    properties:{
+        Application_Type:'web'
+        publicNetworkAccessForIngestion:'Enabled'
+        publicNetworkAccessForQuery:'Enabled'
+        Request_Source:'rest'
+    }
+}
+
+// Create Host Plan
+
+resource azHostingPlan 'Microsoft.Web/serverfarms@2021-03-01'={
+    name: 'ASP${envResourceNamePrefix}${envNamePrefix}'
+    location:resourceLocation
+    sku: {
+        name: 'Y1'
+        tier: 'Dynamic'
+    }
+    properties: {}
+}
+
+
+
+resource azFunctionApp 'Microsoft.Web/sites@2021-03-01' = {
+    name:'${envResourceNamePrefix}BulkUpload-${envNamePrefix}'
+    location:resourceLocation
+    kind: 'functionApp'
+    identity:{
+     type: 'SystemAssigned'
+    }
+    properties :{
+        httpsOnly: true
+        serverFarmId: azHostingPlan.id
+        clientAffinityEnabled:true
+        siteConfig: {
+      appSettings: [
+      
+      {
+        name: 'APPINSIGHTS_INSTRUMENTATIONKEY'
+        value: azAppInsights.properties.InstrumentationKey
+        
+      }
+      {
+        name: 'AzureWebJobsStorage'
+        value: 'DefaultEndpointsProtocol=https;AccountName=${azStorageAccount.name};EndpointSuffix=${environment().suffixes.storage};AccountKey=${azStorageAccount.listKeys().keys[0].value}'
+        
+      }
+      
+      {
+       name: 'FUNCTIONS_EXTENSION_VERSION'
+       value: '~1'
+       
+  
+
+      }
+      {
+       name: 'ApplicationId'
+       value: '521a0a63-0141-4ab6-b111-eb5f49d97ad5'
+      }
+      {
+       name: 'ApplicationInsightsAgent_EXTENSION_VERSION'
+       value: '~2'
+      }
+      {
+       name: 'ApplicationRegistrationSecretName'
+       value: 'IRIS-Functions-Prod-secret'
+      }
+      {
+       name: 'azureKeyVaultName'
+       value: 'IRISKeyVaultProd'
+      }
+      {
+       name: 'DiagnosticServices_EXTENSION_VERSION'
+       value: '~3'
+      }
+      {
+       name: 'organizationUrl'
+       value: 'https://euema.crm4.dynamics.com/'
+      }
+      {
+       name: 'reuseOrganizationService'
+       value: 'false'
+      }
+      {
+       name: 'WEBSITE_RUN_FROM_PACKAGE'
+       value: '1'
+      }
+      
+      {
+       name: 'FUNCTIONS_WORKER_RUNTIME'
+       value: 'dotnet'
+
+      }
+      ]
+      ftpsState: 'FtpsOnly'
+      minTlsVersion: '1.2'
+        }
+    }
+    }
+
+
+az deployment group create --Name ESMPFUNCTIONAPPDEPLOYMENT -c --resource-group prod-iris-test-00001-rg --template-file C:\azurefunction\MarketingStatusBulkUpload\main.bicep --parameters resourceNamePrefix=ESMP-Shortages envName=Test
+
+
+az deployment group create --name ESMPFUNCTIONAPPDEPLOYMENT -c --resource-group prod-iris-test-00001-rg --template-file C:\azurefunction\MarketingStatusBulkUpload\main.bicep --parameters resourceNamePrefix=ESMP-Shortages envName=TEST envResourceNameId=prodiristest01
+
