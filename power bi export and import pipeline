@@ -1,0 +1,358 @@
+parameters:
+- name: Report_export
+  displayName: Report export
+  type: boolean
+  default: True
+
+- name: Report_Refresh
+  displayName: Report Refresh
+  type: boolean
+  default: False
+
+- name : artifactBuildId
+  displayName: Artifact Build Version. if "specific" then choose the build from pipeline resource.
+  type: string
+  default: latest
+  values:
+    - latest
+    - specific
+
+- name: Source_Workspace
+  displayName: Source_Workspace
+  type: string
+  values:
+  - PLM DEV
+  - PLM TEST
+  - PLM UAT
+  - PLM UAT2
+  
+- name: Source_Report_Name
+  displayName: Source_Report_Name
+  type: object
+  default:
+  - POC Industry Products
+  - Industry Data Model
+  - EMA Data Model
+  
+- name: Target_Workspace
+  displayName: Target_Workspace
+  type: string
+  values:
+  - PLM DEV
+  - PLM TEST
+  - PLM UAT
+  - PLM UAT2
+  - PLM PROD
+
+
+trigger: none
+
+resources:
+  pipelines:
+  - pipeline: artifactPipeline
+    source: EMA Power BI report Export and Import
+    trigger: none
+
+variables:
+
+  - name: Report_export
+    value: ${{ parameters.Report_export }}
+
+  - name: Report_Refresh
+    value: ${{ parameters.Report_Refresh }}
+
+  - name: datasourceurl
+    ${{ if eq( parameters['Target_Workspace'], 'PLM DEV') }}:
+      value: "euema-test01.crm4.dynamics.com"
+    ${{ elseif eq( parameters['Target_Workspace'], 'PLM TEST' ) }}:
+      value: "euema-test.crm4.dynamics.com"
+    ${{ elseif eq( parameters['Target_Workspace'], 'PLM UAT' ) }}:
+      value: "euema-uat.crm4.dynamics.com"
+    ${{ elseif eq( parameters['Target_Workspace'], 'PLM UAT2' ) }}:
+      value: "euema-uat2.crm4.dynamics.com"
+    ${{ elseif eq( parameters['Target_Workspace'], 'PLM PROD' ) }}:
+      value: "orga6ce1bab.crm4.dynamics.com"
+       
+
+
+stages:
+  - stage: Report_Export
+    displayName: 'Report Export'
+    jobs:
+        - ${{ each report in parameters.Source_Report_Name}}:
+          - job: 
+            displayName: 'Exporting ${{ report }}'
+            variables:
+            - group: '${{parameters.Source_Workspace}}'
+            steps:
+                - task: PowerShell@2
+                  displayName: 'Export PowerBi report'
+                  env:
+                      appsecret: $(appsecret)
+                  inputs:
+                    targetType: 'inline'
+                    script: |
+                            Install-Module -Name MicrosoftPowerBIMgmt.Profile -Force
+                            Install-Module -Name MicrosoftPowerBIMgmt.Reports -Force
+                            Install-Module -Name MicrosoftPowerBIMgmt.Workspaces -Force
+
+                            $workspacename = "${{parameters.Source_Workspace}}"
+                            $target_workspacename = "${{parameters.Target_Workspace}}"
+                            $datasourceurl1 = "${{variables.datasourceurl}}"
+
+                            $tenantId = '$(tenantId)'
+                            $appId = '$(appId)'
+                            $tenant = $tenantId
+                            write-host "Tenanat ID is $tenant"
+                            $clientid = $appId
+                            write-host "Clinet ID is $clientid"
+                            $conflict ="CreateOrOverwrite"
+                            $securePassword = ConvertTo-SecureString $(appsecret) -AsPlainText -Force
+                            $credential = New-Object -TypeName System.Management.Automation.PSCredential -ArgumentList $clientid, $securePassword
+                            $Connectionresponse = Connect-PowerBIServiceAccount -ServicePrincipal -Credential $credential -TenantId $tenant 
+
+                            try 
+                            {
+                                if ($Connectionresponse )
+                                {
+                                    Write-Host "++++++++++==========Connected succesfully to PowerBI Service==========++++++++++" 
+
+                                    if($$(Report_export)  -eq 'true')
+                                    {
+                                        $workspace = Get-PowerBIWorkspace -Name $workspacename
+                                        $workspaceId = $workspace.Id
+                                        $Reports_download = Get-PowerBIReport -WorkspaceId "$workspaceId" -Name "${{report}}"
+                                        $reportId = $Reports_download.id
+                                        $reports_download_name = $Reports_download.name
+
+                                        if($Reports_download)
+                                        {
+                                            Write-Host "Downloading Powerbi Report ${{report}} ....."
+                                            $DownloadPath = '$(Build.ArtifactStagingDirectory)'
+                                            $DownloadFile = "${{report}}" + ".pbix"
+                                            Export-PowerBIReport -WorkspaceId "$workspaceId" -Id "$reportId" -OutFile $DownloadFile -Verbose
+                                            $TextOutput = "Downloaded " + "$DownloadFile"
+                                            Write-Host $TextOutput
+                                        }
+                                    } 
+                                }
+                                else
+                                {
+                                    Write-Host "==========Unable to connect to PowerBI Service=========="
+                                }
+                                
+                            }
+                            catch
+                            {
+                                Write-Host "$Error"
+                                Write-Host "Unable to deploy report: " ${{report}}
+                            }
+                    workingDirectory: '$(Build.ArtifactStagingDirectory)'
+              # - task: CmdLine@2
+              #   inputs:
+              #     script: |
+              #       echo commit all changes
+              #       git config user.email "allegion-tfs@velrada.com"
+              #       git config user.name "Automatic Build"
+              #       git add $(Build.SourcesDirectory)\Solutions
+              #       git commit -m "Automated commit: update solutions"
+              #       echo push code to new repo
+              #       git -c http.extraheader="AUTHORIZATION: bearer $(System.AccessToken)" push origin HEAD:main
+                - task: PublishBuildArtifacts@1
+                  inputs:
+                    PathtoPublish: '$(Build.ArtifactStagingDirectory)'
+                    ArtifactName: 'drop'
+                    publishLocation: 'Container'
+  
+  - stage: Report_Import
+    displayName: 'Report Import'
+    jobs:
+        - ${{ each report in parameters.Source_Report_Name}}:
+          - job: 
+            displayName: 'Import ${{ report }}'
+            variables:
+            - group: '${{parameters.Target_Workspace}}'
+            steps:
+                - task: DownloadPipelineArtifact@2
+                  displayName: Download Artifacts
+                  inputs:
+                    project: '$(resources.pipeline.artifactPipeline.projectID)'
+                    pipeline: '$(resources.pipeline.artifactPipeline.pipelineID)'
+                    downloadPath: '$(System.DefaultWorkingDirectory)'
+                    artifactName: drop
+                    ${{ if eq(parameters.artifactBuildId, 'latest') }}:
+                      buildVersionToDownload: 'latest'
+                      buildType: 'current'
+                    ${{ if ne(parameters.artifactBuildId, 'latest') }}:
+                      buildVersionToDownload: 'specific'
+                      runId: '$(resources.pipeline.artifactPipeline.runID)'
+                      buildType: 'specific'   
+
+                - task: PowerShell@2
+                  displayName: 'Import PowerBi report'
+                  env:
+                      appsecret: $(appsecret)
+                  inputs:
+                    targetType: 'inline'
+                    script: |
+                            Install-Module -Name MicrosoftPowerBIMgmt.Profile -Force
+                            Install-Module -Name MicrosoftPowerBIMgmt.Reports -Force
+                            Install-Module -Name MicrosoftPowerBIMgmt.Workspaces -Force
+
+                            $workspacename = "${{parameters.Source_Workspace}}"
+                            $target_workspacename = "${{parameters.Target_Workspace}}"
+                            $datasourceurl1 = "${{variables.datasourceurl}}"
+
+                            $tenantId = '$(tenantId)'
+                            $appId = '$(appId)'
+                            $tenant = $tenantId
+                            write-host "Tenanat ID is $tenant"
+                            $clientid = $appId
+                            write-host "Clinet ID is $clientid"
+                            $conflict ="CreateOrOverwrite"
+                            $securePassword = ConvertTo-SecureString $(appsecret) -AsPlainText -Force
+                            $credential = New-Object -TypeName System.Management.Automation.PSCredential -ArgumentList $clientid, $securePassword
+                            $Connectionresponse = Connect-PowerBIServiceAccount -ServicePrincipal -Credential $credential -TenantId $tenant 
+
+                            try 
+                            {
+                                if ($Connectionresponse )
+                                {
+                                    Write-Host "++++++++++==========Connected succesfully to PowerBI Service==========++++++++++" 
+
+                                    $target_workspace = Get-PowerBIWorkspace -Name $target_workspacename  
+                                    $target_workspaceId = $target_workspace.Id 
+                                
+                                    $Reports_upload = New-PowerBIReport -Path  $(System.DefaultWorkingDirectory)/"${{report}}.pbix" -Name "${{report}}.pbix" -WorkspaceId $target_workspaceId -ConflictAction $conflict -ErrorAction stop
+                                    if($Reports_upload)
+                                    {
+                                        Write-Host "${{report}} Powerbi report moved to workspace ${{parameters.Target_Workspace}} SUCCESSFULLY"
+                                        $target_reports = Get-PowerBIReport -WorkspaceId $target_workspaceId -Name "${{report}}"
+                                        $target_datasetId = $target_reports.DatasetId
+                                        $body = 
+                                                @{ updateDetails = 
+                                                    @(         
+                                                        @{ name = "DataSource"           
+                                                          newValue = $datasourceurl1         
+                                                        }     
+                                                    ) 
+                                                } | ConvertTo-Json
+
+                                                try 
+                                                {
+                                                    #Invoke-PowerBIRestMethod -Url "https://api.powerbi.com/v1.0/myorg/datasets/$target_datasetId/Default.UpdateParameters" -Method Post -Body $body -Verbose -ContentType "application/json"
+                                                    #Write-Host "Updated Datasource parameter value Completed Successfully"
+                                                    Write-Host "++++++++++==========KINDLY UPDATE DATASOURCE PARAMETER VALUE MANUALLY++++++++++=========="
+                                                
+                                                }
+                                                catch 
+                                                {
+                                                    Write-Host "Exception in Post Deployment Steps " $_.Exception.
+                                                    Write-Host "$Error"
+                                                    Resolve-PowerBIError
+                                                }
+                                    }
+                                    else
+                                    {
+                                                Write-Host "${{report}} Powerbi report FAILED to move to workspace ${{parameters.Target_Workspace}}"
+                                    }
+                                    if($$(Report_Refresh)  -eq 'true')
+                                    {
+                                      try 
+                                      {
+                                        $target_workspace = Get-PowerBIWorkspace -Name $target_workspacename  
+                                        $target_workspaceId = $target_workspace.Id
+                                        $target_reports = Get-PowerBIReport -WorkspaceId $target_workspaceId -Name "${{report}}"
+                                        $target_datasetId = $target_reports.DatasetId
+
+                                        Invoke-PowerBIRestMethod -Url "groups/$target_workspaceId/datasets/$target_datasetId/refreshes" -Method Post -Body "" -ContentType "application/json"
+                                        Write-Host "Refreshing Dataset Completed Successfully"
+                                      }
+                                      catch 
+                                      {
+                                        Write-Host "Exception in Post Deployment Steps " $_.Exception.Message
+                                        Write-Host "$Error"
+                                        Resolve-PowerBIError
+                                      }
+                                    }
+                                }                      
+                                else
+                                {
+                                    Write-Host "==========Unable to connect to PowerBI Service=========="
+                                }
+                                
+                            }
+                            catch
+                            {
+                                Write-Host "$Error"
+                                Write-Host "Unable to deploy report: " ${{report}}
+                            }
+                    workingDirectory: '$(Build.ArtifactStagingDirectory)'
+
+  
+  - stage: Parameter_update
+    displayName: 'Update Parameter for models'
+    jobs:
+      - ${{ each report in parameters.Source_Report_Name}}:
+        - job: 
+          displayName: 'Importing and Exporting ${{ report }}'
+          steps:
+            - task: PowerShell@2
+              displayName: 'Import and Export PowerBi report'
+              env:
+                      appsecret: $(appsecret)
+              inputs:
+                      targetType: 'inline'
+                      script: |
+                              Install-Module -Name MicrosoftPowerBIMgmt.Profile -Force
+                              Install-Module -Name MicrosoftPowerBIMgmt.Reports -Force
+                              Install-Module -Name MicrosoftPowerBIMgmt.Workspaces -Force  
+
+                              $workspacename = "${{parameters.Source_Workspace}}"
+                              $target_workspacename = "${{parameters.Target_Workspace}}"
+                              $datasourceurl1 = "${{variables.datasourceurl}}"
+
+                              $tenantId = "bc9dc15c-61bc-4f03-b60b-e5b6d8922839"
+                              $appId = "49e81c06-5975-432d-8e11-557efc4cc3ff"
+                              $tenant = $tenantId
+                              $clientid = $appId
+                              $conflict ="CreateOrOverwrite"
+                              $securePassword = ConvertTo-SecureString ${env:appsecret} -AsPlainText -Force
+                              $credential = New-Object -TypeName System.Management.Automation.PSCredential -ArgumentList $clientid, $securePassword
+                              $Connectionresponse = Connect-PowerBIServiceAccount -ServicePrincipal -Credential $credential -TenantId $tenant 
+
+                              try 
+                              {
+                                  if ($Connectionresponse)
+                                  {    
+                                  $target_workspace = Get-PowerBIWorkspace -Name $target_workspacename  
+                                  $target_workspaceId = $target_workspace.Id
+                                  $target_reports = Get-PowerBIReport -WorkspaceId $target_workspaceId -Name "${{report}}"
+                                  Write-Host "Target reports: $target_reports"
+                                  $target_datasetId = $target_reports.DatasetId
+                                  Write-Host "Target datasetID is : $target_datasetId"
+                                  $body = 
+                                                  @{ updateDetails = 
+                                                      @(         
+                                                          @{ name = "DataSource"           
+                                                            newValue = $datasourceurl1         
+                                                          }     
+                                                      ) 
+                                                  } | ConvertTo-Json
+                                
+                                  Invoke-PowerBIRestMethod -Url "https://api.powerbi.com/v1.0/myorg/datasets/$target_datasetId/Default.UpdateParameters" -Method Post -Body $body -Verbose -ContentType "application/json"
+                                  Write-Host "Updated Datasource parameter value Completed Successfully"
+                                  }
+                                  else
+                                  {
+                                    Write-Host "==========Unable to connect to PowerBI Service=========="
+                                  }
+                              }
+                              catch
+                              {
+                                  Write-Host "$Error"
+                                  Write-Host "Unable to deploy report: " ${{report}}
+                              }
+                      workingDirectory: '$(Build.ArtifactStagingDirectory)'
+                                                                  
+      
