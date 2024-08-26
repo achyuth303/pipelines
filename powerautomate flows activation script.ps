@@ -1,0 +1,152 @@
+Install-Module -Name Microsoft.Xrm.Tooling.ConfigurationMigration -RequiredVersion 1.0.0.26 -Force
+# Importing the Common Scripts Module and Microsoft.Xrm.Data.Powershell Module.
+
+$Module = Get-InstalledModule -Name "Microsoft.Xrm.Data.Powershell" -ErrorAction SilentlyContinue -WarningAction SilentlyContinue
+if($Module -ne $null)
+{
+    Write-host "Module is already installed!!!!, `nModule details:";
+    $Module | Format-Table -Wrap 
+ }
+else
+{
+    Write-host "Module is not installed,`nInstalling Module('Microsoft.Xrm.Data.Powershell')...";
+    Install-Module -Name Microsoft.Xrm.Data.Powershell -Force -Scope CurrentUser -AllowClobber
+    Write-host "Module('Microsoft.Xrm.Data.Powershell') is installed successfully....";
+}
+ 
+#Connection
+
+$conn = Get-CrmConnection -ConnectionString "$(connection_oauth)$(ce.test)"
+
+
+
+if($conn -eq $null){
+ Write-Warning 'You need to Connect to CRM Organization. Use Get-CrmConnection to create it.'
+ break
+}
+
+Function Activate-Workflow([string]$solutionName){
+Write-Host "Get Flows from $solutionName that are turned on"
+$fetchFlows = @"
+<fetch>
+<entity name='workflow'>
+    <attribute name='workflowid' />
+    <attribute name='name' />
+    <attribute name='category' />
+    <attribute name='primaryentity' />
+    <attribute name='statecode' />
+    <attribute name='createdon' />
+    <attribute name='ownerid' />
+    <attribute name='owningbusinessunit' />
+    <attribute name='type' />
+    <order descending='false' attribute='name' />
+    <filter type='and'>
+      <condition attribute='category' operator='in'>
+        <value>2</value>
+        <value>5</value>
+        <value>0</value>
+        <value>4</value>
+        <value>3</value>
+      </condition>     
+      <condition attribute='type' operator='eq' value='1' />
+    </filter>
+    <link-entity name='solutioncomponent' from='objectid' to='workflowid' alias='solution'>
+      <link-entity name='solution' from='solutionid' to='solutionid'>
+        <attribute name='friendlyname' />
+        <attribute name='uniquename' />
+        <filter>
+          <condition attribute='uniquename' operator='eq' value='$solutionName' />
+        </filter>
+      </link-entity>
+    </link-entity>
+  </entity>
+</fetch>
+"@;
+$flows = (Get-CrmRecordsByFetch  -conn $conn -Fetch $fetchFlows -Verbose).CrmRecords
+if ($flows.Count -eq 0)
+{   
+    Write-Output "No Flows/action/Business rules that are turned on in $solutionName"
+}
+# Turn On flows
+$count = 0
+
+foreach ($flow in $flows)
+    {
+        try
+         {
+          
+            Set-CrmRecordState -conn $conn -EntityLogicalName workflow -Id $flow.workflowid -StateCode Activated -StatusCode Activated -Verbose -Debug
+            Write-Output "Turned ON:$(($flow).category):$(($flow).name)"
+            $count++
+         }
+         catch
+         {
+             Write-Output "Unable to Turn ON:$(($flow).category):$(($flow).name)"
+             Write-Host "`nError Message: " $_.Exception
+         }
+    }
+    Write-Output "$(($solutionName)):Total Turned ON Flows/action/Business:$(($count))"
+
+}
+#PlugIns
+function Activate-Plugin([string] $solutionName) {
+  # Get the plugin Steps
+Write-Host "Get Plugin steps from $solutionName that are enabled"
+$fetchPlugins = @"
+<fetch>
+  <entity name="sdkmessageprocessingstep">
+    <attribute name="solutionid" />
+    <attribute name="plugintypeid" />
+    <attribute name="name" />
+    <attribute name="statuscode" />
+    <attribute name="sdkmessageid" />
+    <attribute name="statecode" />
+    <attribute name="plugintypeidname" />
+    <attribute name="sdkmessageprocessingstepid" />
+    <link-entity name="solutioncomponent" from="objectid" to="sdkmessageprocessingstepid">
+      <link-entity name="solution" from="solutionid" to="solutionid" alias="solu">
+        <attribute name="uniquename" />
+        <filter>
+          <condition attribute="uniquename" operator="eq" value="$solutionName" />
+        </filter>
+      </link-entity>
+    </link-entity>
+  </entity>
+</fetch>
+"@;
+$plugInSteps = (Get-CrmRecordsByFetch  -conn $conn -Fetch $fetchPlugins -Verbose).CrmRecords
+if ($plugInSteps.Count -eq 0)
+{   
+  Write-Output "No Plugins Steps that are enabled in $solutionName"
+}
+# Enable Plugin Steps
+$count = 0
+try
+{
+  foreach ($plugInStep in $plugInSteps)
+  {
+      try
+       {
+          Set-CrmRecordState -conn $conn -EntityLogicalName sdkmessageprocessingstep -Id $plugInStep.sdkmessageprocessingstepid -StateCode Enabled -StatusCode Enabled -Verbose -Debug
+          Write-Output "Disabled:$(($plugInStep).name)"
+          $count++
+       }
+       catch
+       {
+           Write-Output "Unable to Disable:$(($plugInStep).name)"
+           Write-Host "`nError Message: " $_.Exception
+       }
+  }
+  Write-Output "$(($solutionName)):Total Disabled Plugin Steps:$(($count))"
+}
+catch
+{
+
+
+
+}
+}
+# Add Solution Name
+Activate-Workflow("$(crmEMA_PowerAutomate)")
+
+
