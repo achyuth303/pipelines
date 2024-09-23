@@ -167,6 +167,10 @@ Copy code
   git stash list ( to view the files in stash)
 
   git stash apply stash(O)  -    stash(0) - stash filename to apply the changes to the branch
+
+  git stash pop - Will apply most recent changes when there are more stashes
+
+  git stash clear  - this command will clear all the stashes
   ```
 - **Use**: When you want to switch branches but save your current work for later.
 
