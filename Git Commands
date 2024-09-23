@@ -162,7 +162,7 @@ Copy code
 - **Purpose**: Temporarily saves changes in a dirty working directory.
 - **Example**:
   ```bash
-  git stash
+  git stash save "first stash"
   ```
 - **Use**: When you want to switch branches but save your current work for later.
 
