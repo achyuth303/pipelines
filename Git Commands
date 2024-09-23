@@ -199,3 +199,9 @@ Copy code
     git diff branch1..branch2
     ```
 - **Use**: To see what changes have been made between two points in history.
+
+19. git merge tool (merge tool command when conflicts)
+
+    git config --global merge.tool kdiff3
+
+    git mergetool   ( this opens the mergetool popup showing the differences)
