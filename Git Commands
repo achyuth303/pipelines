@@ -165,6 +165,8 @@ Copy code
   git stash save "first stash"
 
   git stash list ( to view the files in stash)
+
+  git stash apply stash(O)  -    stash(0) - stash filename to apply the changes to the branch
   ```
 - **Use**: When you want to switch branches but save your current work for later.
 
