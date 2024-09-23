@@ -163,6 +163,8 @@ Copy code
 - **Example**:
   ```bash
   git stash save "first stash"
+
+  git stash list ( to view the files in stash)
   ```
 - **Use**: When you want to switch branches but save your current work for later.
 
